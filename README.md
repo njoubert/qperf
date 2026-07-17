@@ -81,8 +81,13 @@ Tested on Apple Silicon (Darwin 25.x) with Homebrew, CMake 4.4 and OpenSSL 3.
 
 ### 1. Install required dependencies
 ```
+xcode-select --install
 brew install cmake openssl@3 libev
 ```
+`xcode-select --install` provides the Command Line Tools (clang and the system
+headers); skip it if you already have Xcode installed. It requires no Apple
+developer account.
+
 Homebrew's OpenSSL is keg-only, so it is not on the default include/library search
 path — the cmake invocation below points at it explicitly. Apple's system LibreSSL
 will not work; picotls needs real OpenSSL 3.
