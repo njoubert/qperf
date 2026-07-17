@@ -13,7 +13,7 @@ incomplete — a report alone is a claim, not a result.
 
 | study | question | finding |
 |---|---|---|
-| [parallel-streams-vs-connections](parallel-streams-vs-connections/) | Do N parallel QUIC streams over one connection increase throughput? | **No** — 0.93x from N=1 to N=8, while N parallel TCP connections give 4.92x on the same path. Streams share one congestion window. (2026-07-16) |
+| [parallel-streams-vs-connections](parallel-streams-vs-connections/) | Do N parallel QUIC streams over one connection increase throughput? | **No — multiplexing streams is not multiplexing sockets.** On a lossy uplink, N TCP connections give 4.92x from N=1 to N=8 (N independent congestion windows); N QUIC streams on one connection give 0.93x, sharing the single window loss has already clamped. (2026-07-16) |
 
 ## Layout of a study
 

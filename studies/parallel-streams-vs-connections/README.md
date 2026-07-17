@@ -5,6 +5,10 @@
 **Baseline:** iperf3 3.21 (TCP)
 **Question:** When N streams share one QUIC connection, do they share one congestion
 window — so that aggregate throughput is independent of N?
+**Finding:** They do share one window — so **multiplexing streams is not multiplexing
+sockets**. On a lossy uplink, going from 1 to 8 TCP connections buys **4.92x**; going
+from 1 to 8 QUIC streams on one connection buys **nothing (0.93x)**. The loss is what
+makes parallelism pay, and only separate connections can collect.
 
 Some initial poking at this path turned up interesting behaviour in one direction:
 data uploading from the laptop to `weshootfilm.com` behaved oddly — a single flow
@@ -14,9 +18,16 @@ direction unless stated otherwise.
 
 ## Summary
 
-**N parallel QUIC streams over one connection give no throughput gain, while N parallel
-TCP connections give up to 4.9x on the same path, in the same direction, at the same
-time of day.** Streams share one congestion window; connections do not.
+**Multiplexing streams is not multiplexing sockets. On a lossy uplink, opening more
+sockets buys 4.9x; opening more streams buys nothing.**
+
+That gap only exists *because* the uplink loses packets. Loss is what makes parallelism
+pay at all: a loss-based congestion controller reads the loss rate and clamps its window
+accordingly, so one flow is stuck in the tens of Mbit/s on a path that carries ~295. N
+TCP connections escape that by bringing **N independent congestion windows**, each
+absorbing the loss on its own account, and they aggregate. N QUIC streams bring **one
+window between them** no matter how many you open — the scheduler just divides the same
+clamped window N ways. Same path, same direction, same time of day:
 
 | N | qperf QUIC (N streams, 1 conn) | iperf3 TCP (N connections) |
 |---|---|---|
@@ -29,9 +40,13 @@ time of day.** Streams share one congestion window; connections do not.
 
 **Scaling from N=1 to N=8: QUIC streams 0.93x, TCP connections 4.92x.**
 
-**And the uplink is lossy far below its capacity — this is the mechanism.** A UDP
-sweep with no congestion control at all, which simply blasts at a target rate and
-counts what arrives:
+So the workaround every upload client reaches for — open more sockets and stripe the
+data — has no in-connection equivalent in QUIC. Streams buy head-of-line-blocking
+independence, not loss independence. If you want N windows, you need N connections.
+
+**The loss that drives all of this is real and measured: the uplink is lossy far below
+its capacity.** A UDP sweep with no congestion control at all, which simply blasts at a
+target rate and counts what arrives:
 
 | target | sent | received | loss | lost/total | jitter |
 |---|---|---|---|---|---|
@@ -55,13 +70,11 @@ essentially clean (~0.1%, background). Past that it degrades steeply but smoothl
 than a hard policer. Jitter *falls* as the rate rises (0.32ms → 0.03ms), consistent
 with a bottleneck that drops rather than queues.
 
-That knee is the whole story of the single-flow limit. A loss-based controller (reno,
-cubic) derives its equilibrium window from the loss rate it observes; at ~2.5% loss the
-classic square-root law puts a single flow in the tens of Mbit/s — precisely where TCP
-N=1 (60–67) and QUIC N=1 (50) land. **Neither is malfunctioning: both are doing exactly
-what a loss-based controller does on a path with this loss profile.** Eight TCP
-connections each tolerate that loss independently and aggregate to ~295; eight QUIC
-streams share the one clamped window and stay at ~47.
+That knee is what pins a single flow. The classic square-root law puts a loss-based
+controller's equilibrium window at ~2.5% loss somewhere in the tens of Mbit/s — precisely
+where TCP N=1 (60–67) and QUIC N=1 (50) land. **Neither transport is malfunctioning: both
+are doing exactly what a loss-based controller does on a path with this loss profile.**
+The 6x gap at N=8 is not one of them being slow; it is eight windows against one.
 
 Measuring this at all required teaching qperf to upload — the original tool was
 download-only by construction. That work is not part of the finding; see
@@ -106,17 +119,15 @@ still move 5x the data, the classic parallel-TCP bargain:
 
 ## Interpretation
 
-**The hypothesis is confirmed.** N QUIC streams multiplex over one connection with one
-congestion controller, and the scheduler divides that window among them. Streams buy
-head-of-line-blocking independence, not bandwidth. N TCP connections bring N independent
-congestion windows, and where a single window is the binding constraint, that is worth
-~5x.
+**The hypothesis is confirmed**, and the loss curve above is why: N QUIC streams
+multiplex over one connection with one congestion controller, and the scheduler divides
+that one clamped window among them.
 
-**The 6x gap at N=8 is the headline, and it is a property of the transport's
-architecture, not of an implementation detail.** QUIC's own N=1 (50.5) is in the same
-regime as TCP's N=1 (59.8); the divergence appears only when TCP is allowed to open more
-windows and QUIC is not. Both transports are behaving correctly; the difference is purely
-how many windows each can bring to a lossy path.
+**The gap is a property of the transport's architecture, not of an implementation
+detail.** QUIC's own N=1 (50.5) sits in the same regime as TCP's N=1 (59.8) — the two
+stacks agree closely when each has exactly one window to work with. The divergence
+appears only once TCP is allowed to open more windows and QUIC is not. Nothing about
+quicly, its scheduler, or the tuning is implicated.
 
 **This is a statement about one connection, not about QUIC's ceiling.** N QUIC
 *connections* would presumably scale much as N TCP connections do. The measured result is
