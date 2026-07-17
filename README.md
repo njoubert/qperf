@@ -2,6 +2,13 @@
 A performance measurement tool for QUIC similar to iperf.
 Uses https://github.com/h2o/quicly 
 
+This fork adds `-P` (parallel streams over one connection), `-u` (upload mode) and
+`--recv-window`. It was used to measure whether parallel QUIC streams increase
+throughput — they do not, while parallel TCP connections do. See
+[multistream-report.md](multistream-report.md) for the findings, its raw data in
+[data/](data/), and [REPRODUCING.md](REPRODUCING.md) to recreate it end to end
+(needs `iperf3` on both ends for the TCP baseline).
+
 # basic usage and example output
 ```
 Usage: ./qperf [options]

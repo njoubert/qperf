@@ -1,0 +1,19 @@
+starting client with host weshootfilm.com, port 5201, runtime 15s, cc reno, iw 10, streams 1, recv-window 16777216 bytes
+connection establishment time: 24ms
+time to first byte: 37ms
+second 0: 243.3 mbit/s (31889170 bytes received)
+second 1: 246.1 mbit/s (32258518 bytes received)
+second 2: 177.3 mbit/s (23237568 bytes received)
+second 3: 152.9 mbit/s (20037321 bytes received)
+second 4: 167.8 mbit/s (21991354 bytes received)
+second 5: 134 mbit/s (17563723 bytes received)
+second 6: 147.4 mbit/s (19319468 bytes received)
+second 7: 124.9 mbit/s (16365178 bytes received)
+second 8: 133.5 mbit/s (17502228 bytes received)
+second 9: 147.5 mbit/s (19329508 bytes received)
+second 10: 146.8 mbit/s (19247919 bytes received)
+second 11: 131.6 mbit/s (17246208 bytes received)
+second 12: 145.6 mbit/s (19082256 bytes received)
+second 13: 150 mbit/s (19665835 bytes received)
+second 14: 174.1 mbit/s (22825938 bytes received)
+connection closed

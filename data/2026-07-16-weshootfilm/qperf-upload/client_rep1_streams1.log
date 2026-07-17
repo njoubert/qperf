@@ -1,0 +1,21 @@
+starting client with host weshootfilm.com, port 5201, runtime 15s, cc cubic, iw 10, streams 1, recv-window 16777216 bytes, direction upload
+note: in upload mode the SERVER is the receiver and reports the authoritative
+      throughput. the client reports acknowledged bytes as a cross-check.
+connection establishment time: 19ms
+time to first ack: 34ms
+second 0: 41.06 mbit/s (5381347 bytes acked)
+second 1: 49.17 mbit/s (6444415 bytes acked)
+second 2: 36.19 mbit/s (4743864 bytes acked)
+second 3: 47.9 mbit/s (6278763 bytes acked)
+second 4: 35.91 mbit/s (4706191 bytes acked)
+second 5: 24.84 mbit/s (3255450 bytes acked)
+second 6: 27.18 mbit/s (3562921 bytes acked)
+second 7: 39.93 mbit/s (5233316 bytes acked)
+second 8: 39.75 mbit/s (5209503 bytes acked)
+second 9: 37.19 mbit/s (4874406 bytes acked)
+second 10: 52.62 mbit/s (6897412 bytes acked)
+second 11: 44.83 mbit/s (5875902 bytes acked)
+second 12: 37.4 mbit/s (4902015 bytes acked)
+second 13: 44.47 mbit/s (5829416 bytes acked)
+second 14: 47.84 mbit/s (6269935 bytes acked)
+connection closed
