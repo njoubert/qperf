@@ -94,11 +94,56 @@ triggers on `pull_request` to master (a plain branch push does *not* trigger it)
 ```
 ./build/qperf -s              # server, default port 18080
 ./build/qperf -c HOST -p PORT # client, 10s run
+./build/qperf -c HOST -P 4    # 4 parallel streams on one connection
 ```
 
 Server reads `server.crt` / `server.key` **from the current working directory**;
 self-signed is fine, the client doesn't validate. Generate per the README.
 `test-certs/` is gitignored along with `server.key`/`server.crt` — never commit keys.
+
+## Upload mode (`-u`)
+
+The only change here that touches the wire. An upload stream is a **unidirectional**
+stream — client-initiated uni streams only flow client→server, so the stream type is
+the signal and there's no request token to parse. `server_on_stream_open` and
+`client_on_stream_open` both branch on `quicly_stream_is_unidirectional`.
+
+- **`server.c` must set `transport_params.max_streams_uni`.** quicly's spec default
+  is **0**, so without it the client's upload streams sit blocked forever waiting for
+  credit — a hang, not an error. This is why `-u` needs a rebuilt *server*, not just
+  a rebuilt client. (The field is `max_streams_uni`; `defaults.c`'s comment calls it
+  `max_concurrent_streams_uni`, which is not the struct member name.)
+- **The server reports upload throughput**, since the receiver is the only side that
+  can measure goodput. The client reports *acked* bytes (via `send_shift`) as a
+  cross-check — not emitted bytes, which would count data still in flight.
+- **Counting `len` in `on_receive` is correct**: `quicly_recvstate_update` already
+  deduplicates, so reordering and retransmits don't double-count.
+- Upload reporting state is file-static in `server_stream.c`, so **concurrent
+  uploading connections would merge into one report**. Fine for sequential test runs;
+  fix it if that ever matters.
+
+## Parallel streams (`-P`) and `--recv-window`
+
+Client-side only, both of them; the server needed no protocol change. Things that
+look like bugs but aren't:
+
+- **`-P` caps at 100.** The server advertises `max_concurrent_streams_bidi=100`
+  (quicly's spec default) and qperf streams never close, so it never issues more
+  stream credit. Streams past 100 would *stall silently forever*, not error —
+  hence the check in `main.c` against `QPERF_MAX_STREAMS`.
+- **The client opens all streams before the handshake completes**, when the peer's
+  transport params are still unknown. quicly parks them as `streams_blocked` and
+  `open_blocked_streams()` backfills each stream's `max_stream_data` once the real
+  params arrive. This already happened with one stream; it loops, so N is free.
+- **`client_stream` embeds `quicly_streambuf_t` as its first member** and passes its
+  own size to `quicly_streambuf_create`. The streambuf callbacks cast `stream->data`
+  straight to the streambuf, so that member must stay first.
+- **Only stream 0 reports on the server** (`server_stream.c`). The stats there are
+  connection-wide, so N streams reporting meant N identical lines per second.
+- `--recv-window` is `initial_max_data`, i.e. a window on data *in flight*, not a
+  transfer cap. It's per-connection, so it bounds the aggregate of a `-P` run
+  (`window / RTT`). On loopback you need to go below ~8K to see it bind at all —
+  RTT is so small that the default 16M is nowhere near the constraint.
 
 ## Gotchas
 

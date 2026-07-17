@@ -89,16 +89,26 @@ void client_read_cb(EV_P_ ev_io *w, int revents)
     client_refresh_timeout();
 }
 
-void enqueue_request(quicly_conn_t *conn)
+void enqueue_request(quicly_conn_t *conn, int num_streams, bool upload)
 {
-    quicly_stream_t *stream;
-    int ret = quicly_open_stream(conn, &stream, 0);
-    assert(ret == 0);
     const char *req = "qperf start sending";
 
-    
-    quicly_streambuf_egress_write(stream, req, strlen(req));
-    quicly_streambuf_egress_shutdown(stream);
+    for(int i = 0; i < num_streams; ++i) {
+        quicly_stream_t *stream;
+        int ret = quicly_open_stream(conn, &stream, upload ? 1 : 0);
+        assert(ret == 0);
+
+        if(upload) {
+            // no request token: a client-initiated unidirectional stream only
+            // flows client->server, so the stream type is itself the signal.
+            // client_on_stream_open has already attached the sender callbacks.
+            ret = quicly_stream_sync_sendbuf(stream, 1);
+            assert(ret == 0);
+        } else {
+            quicly_streambuf_egress_write(stream, req, strlen(req));
+            quicly_streambuf_egress_shutdown(stream);
+        }
+    }
 }
 
 static void client_on_conn_close(quicly_closed_by_remote_t *self, quicly_conn_t *conn, quicly_error_t err,
@@ -121,7 +131,7 @@ static quicly_stream_open_t stream_open = {&client_on_stream_open};
 
 static quicly_closed_by_remote_t closed_by_remote = {&client_on_conn_close};
 
-int run_client(const char *port, bool gso, const char *logfile, const char *cc, int iw, const char *host, int runtime_s, bool ttfb_only)
+int run_client(const char *port, bool gso, const char *logfile, const char *cc, int iw, const char *host, int runtime_s, bool ttfb_only, int num_streams, uint64_t recv_window, bool upload)
 {
     setup_session_cache(get_tlsctx());
     quicly_amend_ptls_context(get_tlsctx());
@@ -133,6 +143,7 @@ int run_client(const char *port, bool gso, const char *logfile, const char *cc, 
     client_ctx.transport_params.max_stream_data.uni = UINT32_MAX;
     client_ctx.transport_params.max_stream_data.bidi_local = UINT32_MAX;
     client_ctx.transport_params.max_stream_data.bidi_remote = UINT32_MAX;
+    client_ctx.transport_params.max_data = recv_window;
     client_ctx.initcwnd_packets = iw;
 
     if(strcmp(cc, "reno") == 0) {
@@ -191,7 +202,12 @@ int run_client(const char *port, bool gso, const char *logfile, const char *cc, 
         setup_log_event(client_ctx.tls, logfile);
     }
 
-    printf("starting client with host %s, port %s, runtime %is, cc %s, iw %i\n", host, port, runtime_s, cc, iw);
+    printf("starting client with host %s, port %s, runtime %is, cc %s, iw %i, streams %i, recv-window %" PRIu64 " bytes, direction %s\n",
+           host, port, runtime_s, cc, iw, num_streams, recv_window, upload ? "upload" : "download");
+    if(upload) {
+        printf("note: in upload mode the SERVER is the receiver and reports the authoritative\n"
+               "      throughput. the client reports acknowledged bytes as a cross-check.\n");
+    }
     quit_after_first_byte = ttfb_only;
 
     // start time
@@ -201,7 +217,7 @@ int run_client(const char *port, bool gso, const char *logfile, const char *cc, 
     assert(ret == 0);
     ++next_cid.master_id;
 
-    enqueue_request(conn);
+    enqueue_request(conn, num_streams, upload);
     if(!send_pending(&client_ctx, client_socket, conn)) {
         printf("failed to connect: send_pending failed\n");
         exit(1);
@@ -247,4 +263,11 @@ void on_first_byte()
     if(quit_after_first_byte) {
         quit_client();
     }
+}
+
+// uploading, so nothing arrives to time: the first acknowledgement is the earliest
+// evidence our data reached the server. -e is rejected with -u, hence no quit here.
+void on_first_ack()
+{
+    printf("time to first ack: %lums\n", client_ctx.now->cb(client_ctx.now) - start_time);
 }

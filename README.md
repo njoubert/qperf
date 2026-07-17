@@ -7,16 +7,32 @@ Uses https://github.com/h2o/quicly
 Usage: ./qperf [options]
 
 Options:
-  -c target             run as client and connect to target server
-  --cc [reno,cubic]     congestion control algorithm to use (default reno)
-  -e                    measure time for connection establishment and first byte only
-  -g                    enable UDP generic segmentation offload
-  --iw initial-window   initial window to use (default 10)
-  -l log-file           file to log tls secrets
-  -p                    port to listen on/connect to (default 18080)
-  -s                    run as server
-  -t time (s)           run for X seconds (default 10s)
-  -h                    print this help
+  -c target            run as client and connect to target server
+  --cc [reno,cubic]    congestion control algorithm to use (default reno)
+  -e                   measure time for connection establishment and first byte only
+  -g                   enable UDP generic segmentation offload
+  --iw initial-window  initial window to use (default 10)
+  -l log-file          file to log tls secrets
+  -p                   port to listen on/connect to (default 18080)
+  -P streams           number of parallel streams to request over the single
+                       connection (default 1, max 100). All streams share one
+                       congestion window; the per-second report shows each
+                       stream plus the total.
+  --recv-window bytes  how much data the server may send us before waiting for
+                       our acknowledgements -- a window on data in flight, NOT a
+                       cap on total bytes transferred. Throughput cannot exceed
+                       this divided by the round-trip time, so raise it on long
+                       fat links. Client-side only; this is the QUIC
+                       initial_max_data transport parameter. Accepts K/M/G
+                       suffixes (default 16M)
+  -s  address          listen as server on address
+  -t time (s)          run for X seconds (default 10s)
+  -u                   upload instead of download: the client sends and the
+                       SERVER measures and reports throughput. Default is
+                       download (server sends, client reports). Upload streams
+                       are unidirectional and require a server built with
+                       upload support.
+  -h                   print this help
 ```
 
 server
@@ -57,6 +73,79 @@ second 7: 3.336 gbit/s (447686682 bytes received)
 second 8: 3.034 gbit/s (407235597 bytes received)
 second 9: 3.02 gbit/s (405314061 bytes received)
 ```
+
+# parallel streams
+
+`-P` asks the server for N streams over the *same* QUIC connection — one UDP
+socket, one handshake, one congestion window shared by all of them. This is the
+QUIC property that distinguishes it from running N TCP connections: N streams do
+not get you N times the congestion window, so the aggregate should land close to
+what a single stream achieves. The per-second report keeps the usual total line
+and adds a breakdown per stream.
+```
+./qperf -c 127.0.0.1 -P 4 -t 3
+starting client with host 127.0.0.1, port 18080, runtime 3s, cc reno, iw 10, streams 4, recv-window 16777216 bytes
+connection establishment time: 8ms
+time to first byte: 8ms
+second 0: 2.055 gbit/s (275874787 bytes received)
+  stream 0: 526.2 mbit/s (68967557 bytes received)
+  stream 1: 526.2 mbit/s (68967161 bytes received)
+  stream 2: 526.2 mbit/s (68970056 bytes received)
+  stream 3: 526.2 mbit/s (68970013 bytes received)
+```
+The server is unchanged by `-P` — it serves whatever streams the client opens, and
+still reports its send window once per *connection*, not once per stream. Streams
+are scheduled round-robin by quicly, which is why the split above is even.
+
+The ceiling is 100 streams: the server advertises `max_concurrent_streams_bidi=100`
+and qperf streams never close, so it never issues more stream credit. The client
+rejects `-P` above that rather than opening streams that would silently stall.
+
+# upload
+
+By default the server sends and the client measures. `-u` reverses that: the client
+sends and the **server** prints the throughput, because the receiver is the side that
+can measure goodput. Read the numbers on the server's console:
+```
+# client
+./qperf -c 127.0.0.1 -u -P 2 -t 4
+time to first ack: 8ms
+second 0: 1.672 gbit/s (224354491 bytes acked)
+
+# server -- the authoritative measurement
+upload started, receiving
+upload second 0: 1.689 gbit/s (226728893 bytes received)
+  stream 0: 864.9 mbit/s (113362465 bytes received)
+  stream 1: 864.9 mbit/s (113366428 bytes received)
+```
+The client's line reports *acknowledged* bytes rather than bytes handed to quicly, so
+it excludes anything still in flight. It is a cross-check on the server's figure, not
+a substitute: the two should agree within about a percent.
+
+An upload stream is simply a **unidirectional** stream. Client-initiated uni streams
+only ever flow client→server, so the stream type is itself the signal and there is no
+request token for the server to parse.
+
+**Both ends must be new enough.** The server has to advertise unidirectional stream
+credit (`max_streams_uni`), which quicly's spec default sets to 0. Against an older
+qperf server, `-u` will hang rather than fail, because the streams sit blocked waiting
+for credit that never arrives.
+
+# flow control
+
+`--recv-window` sets how much data the server may send before it has to wait for
+the client's acknowledgements. It is a window on data *in flight* — not a limit on
+how many bytes the run will transfer. Throughput cannot exceed
+`recv-window / round-trip-time`, so on a long fat link the default 16M can bind
+before congestion control does, and a high-bandwidth high-latency test wants a
+bigger value:
+```
+./qperf -c far-away-host -P 4 --recv-window 256M
+```
+It is the QUIC `initial_max_data` transport parameter, advertised by the client to
+the server, so it is a client-side flag only. It is shared across all streams of the
+connection, which means it applies to the aggregate of a `-P` run rather than to
+each stream. (The per-stream windows are already effectively unlimited.)
 
 # how to build
 

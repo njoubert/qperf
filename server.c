@@ -186,6 +186,9 @@ int run_server(const char* address, const char *port, bool gso, const char *logf
     server_ctx.transport_params.max_stream_data.uni = UINT32_MAX;
     server_ctx.transport_params.max_stream_data.bidi_local = UINT32_MAX;
     server_ctx.transport_params.max_stream_data.bidi_remote = UINT32_MAX;
+    // clients upload on unidirectional streams; the spec default is 0, which would
+    // block them forever rather than fail.
+    server_ctx.transport_params.max_streams_uni = QPERF_MAX_STREAMS;
     server_ctx.initcwnd_packets = iw;
 
     if(strcmp(cc, "reno") == 0) {

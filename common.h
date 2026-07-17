@@ -10,6 +10,11 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 
+// the peer advertises this many concurrent streams and qperf streams never close,
+// so it never issues more stream credit; streams past this would stall forever
+// rather than fail. matches quicly's spec-default max_streams_bidi.
+#define QPERF_MAX_STREAMS 100
+
 ptls_context_t *get_tlsctx();
 
 struct addrinfo *get_address(const char *host, const char *port);
