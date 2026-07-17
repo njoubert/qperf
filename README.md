@@ -59,12 +59,14 @@ second 9: 3.02 gbit/s (405314061 bytes received)
 ```
 
 # how to build
-## 1. Install required dependencies 
+
+## Linux
+### 1. Install required dependencies 
 ```
 sudo apt update
 sudo apt install git cmake libssl-dev libev-dev g++ -y
 ```
-## 2.  
+### 2.  
 ```
 git clone --recurse-submodules https://github.com/rbruenig/qperf.git
 mkdir build-qperf
@@ -72,6 +74,51 @@ cd build-qperf
 cmake ../qperf
 make
 ```
+
+## macOS
+
+Tested on Apple Silicon (Darwin 25.x) with Homebrew, CMake 4.4 and OpenSSL 3.
+
+### 1. Install required dependencies
+```
+brew install cmake openssl@3 libev
+```
+Homebrew's OpenSSL is keg-only, so it is not on the default include/library search
+path — the cmake invocation below points at it explicitly. Apple's system LibreSSL
+will not work; picotls needs real OpenSSL 3.
+
+### 2. Configure and build
+```
+git clone --recurse-submodules https://github.com/rbruenig/qperf.git
+cd qperf
+
+OPENSSL_PREFIX="$(brew --prefix openssl@3)"
+LIBEV_PREFIX="$(brew --prefix libev)"
+
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DOPENSSL_ROOT_DIR="$OPENSSL_PREFIX" \
+  -DOPENSSL_INCLUDE_DIR="$OPENSSL_PREFIX/include" \
+  -DOPENSSL_SSL_LIBRARY="$OPENSSL_PREFIX/lib/libssl.dylib" \
+  -DOPENSSL_CRYPTO_LIBRARY="$OPENSSL_PREFIX/lib/libcrypto.dylib" \
+  -DCMAKE_C_FLAGS="-I$OPENSSL_PREFIX/include -I$LIBEV_PREFIX/include" \
+  -DCMAKE_EXE_LINKER_FLAGS="-L$OPENSSL_PREFIX/lib -L$LIBEV_PREFIX/lib"
+
+cmake --build build --parallel "$(sysctl -n hw.logicalcpu)"
+```
+The binary lands at `build/qperf`.
+
+`-DCMAKE_POLICY_VERSION_MINIMUM=3.5` is required because the vendored quicly
+declares `cmake_minimum_required(VERSION 2.8.12)`, and CMake 4.x refuses
+compatibility with anything below 3.5.
+
+### 3. macOS caveats
+* **No UDP GSO.** `-g` relies on the `UDP_SEGMENT` socket option, which is
+  Linux-only. On macOS `enable_gso()` prints a warning and falls back to one
+  `sendmsg` per datagram, so `-g` is a no-op rather than a build failure.
+* Throughput will be lower than on Linux for the same link, partly for the reason
+  above and partly because macOS UDP socket buffers are small by default.
 
 # TLS
 QUIC requires TLS, so qperf requires TLS certificates when running in server mode. It will look for a "server.crt" and "server.key" file in the current working directory.

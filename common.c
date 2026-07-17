@@ -109,7 +109,11 @@ bool (*send_dgrams)(int fd, struct sockaddr *dest, struct iovec *dgrams, size_t 
 
 void enable_gso()
 {
+#ifdef __linux__
     send_dgrams = send_dgrams_gso;
+#else
+    fprintf(stderr, "UDP GSO is only supported on Linux; continuing without GSO\n");
+#endif
 }
 
 bool send_pending(quicly_context_t *ctx, int fd, quicly_conn_t *conn)

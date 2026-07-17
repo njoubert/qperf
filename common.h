@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __APPLE__
+#include <pthread.h>
+#endif
+
 #include <quicly.h>
 #include <stdbool.h>
 #include <stdint.h>
