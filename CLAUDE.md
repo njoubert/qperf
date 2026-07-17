@@ -10,6 +10,10 @@ This is a **fork** of `rbruenig/qperf`, patched for local macOS use.
 - `common.c` / `common.h` — TLS ctx, address resolution, datagram send paths
 - `extern/quicly` — vendored submodule (with its own `deps/picotls`, `klib`, `picotest`).
   Keep it clean; all our patches live in the top-level sources.
+- `studies/` — measurement studies. Each is self-contained (report, raw data, scripts,
+  runbook) and its conclusions must be re-derivable by running its own
+  `scripts/analyze.py` against its own `data/`. Don't put study material in the repo
+  root, and don't add a report without the data behind it. See `studies/README.md`.
 
 ## Remotes
 

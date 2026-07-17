@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""Regenerate the report's tables from a raw data directory.
+"""Regenerate the study report's tables from a raw data directory.
 
-Usage: scripts/analyze.py data/2026-07-16-weshootfilm
+Usage, from studies/parallel-streams-vs-connections/:
+    scripts/analyze.py data/2026-07-16-weshootfilm
+
+Takes the data directory as an argument so a later campaign on a different link is
+just another dated directory, analysed the same way.
 
 Metric: mean throughput over seconds 5-14 of each run, reported in SI Mbit/s.
 

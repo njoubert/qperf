@@ -27,7 +27,10 @@ STREAMS=("${@:-1 2 4 8}")
 # abort the script under `set -e` when the test is false, hence the if.
 if [ ${#STREAMS[@]} -eq 1 ]; then read -ra STREAMS <<< "${STREAMS[0]}"; fi
 
-QPERF=${QPERF:-./build/qperf}
+# resolve the repo's build dir from this script's location, so the script works from
+# any cwd: studies/<study>/scripts/ -> three levels up is the repo root.
+REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
+QPERF=${QPERF:-$REPO_ROOT/build/qperf}
 RUNTIME=${RUNTIME:-15}
 CC=${CC:-cubic}
 

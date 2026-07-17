@@ -1,9 +1,9 @@
 # Raw data — 2026-07-16, weshootfilm.com
 
-The measurements behind [`../../multistream-report.md`](../../multistream-report.md).
-Every number in that report is derived from these files; nothing else was used.
+The measurements behind [the study report](../../README.md). Every number in that
+report is derived from these files; nothing else was used.
 
-Regenerate the report's tables with:
+Regenerate the report's tables with, from the study directory:
 
 ```
 scripts/analyze.py data/2026-07-16-weshootfilm

@@ -4,10 +4,12 @@ Uses https://github.com/h2o/quicly
 
 This fork adds `-P` (parallel streams over one connection), `-u` (upload mode) and
 `--recv-window`. It was used to measure whether parallel QUIC streams increase
-throughput — they do not, while parallel TCP connections do. See
-[multistream-report.md](multistream-report.md) for the findings, its raw data in
-[data/](data/), and [REPRODUCING.md](REPRODUCING.md) to recreate it end to end
-(needs `iperf3` on both ends for the TCP baseline).
+throughput — they do not, while parallel TCP connections do.
+
+See [studies/](studies/) for the measurement studies run with it: each carries its
+report, the raw data behind it, the scripts that regenerate its tables, and a runbook
+to recreate it from scratch. The first one is
+[parallel-streams-vs-connections](studies/parallel-streams-vs-connections/).
 
 # basic usage and example output
 ```

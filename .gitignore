@@ -8,3 +8,7 @@ compile_commands.json
 test-certs/
 server.crt
 server.key
+
+# python bytecode from running the analysis scripts
+__pycache__/
+*.pyc

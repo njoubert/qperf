@@ -426,44 +426,26 @@ not multiply throughput, by design.
 
 ## Reproduction
 
+Full runbook — server setup, both tools, every gotcha — is in
+[REPRODUCING.md](REPRODUCING.md). The short version, from this directory:
+
 ```bash
-# qperf server -- MUST be rebuilt with upload support; an old server hangs on -u
-./build/qperf --cc cubic -s <address> -p 5201     # UDP 5201
+# sweeps (each ~4 min). --cc follows the SENDER, which flips with direction:
+# download -> server sends (start the server with --cc); upload -> client sends.
+scripts/sweep-qperf.sh  $HOST 5201 download data/<date>-<host>/qperf-download-cubic
+scripts/sweep-qperf.sh  $HOST 5201 upload   data/<date>-<host>/qperf-upload
+scripts/sweep-iperf3.sh $HOST 5201 download data/<date>-<host>/iperf3-download
+scripts/sweep-iperf3.sh $HOST 5201 upload   data/<date>-<host>/iperf3-upload
+scripts/sweep-udp.sh    $HOST 5201 data/<date>-<host>/iperf3-udp   # stop qperf first
 
-# iperf3 server (coexists on TCP 5201)
-iperf3 -s -p 5201
-
-# qperf UPLOAD sweep -- client is the sender, so --cc applies here.
-# throughput is printed by the SERVER; the client's line is an acked-byte cross-check.
-for REP in 1 2 3; do for P in 1 2 4 8; do
-  ./build/qperf -c weshootfilm.com -p 5201 -u --cc cubic -P $P -t 15
-  sleep 2
-done; done
-
-# qperf DOWNLOAD sweep -- server is the sender, so --cc belongs on the server
-for REP in 1 2 3; do for P in 1 2 4 8; do
-  ./build/qperf -c weshootfilm.com -p 5201 -P $P -t 15 > cub_r${REP}_p${P}.log
-  sleep 2
-done; done
-
-# iperf3: -R = download (matches qperf's default), omit -R = upload
-iperf3 -c weshootfilm.com -p 5201 -P $P -t 15 -R -J > ip_r${REP}_p${P}.json
-iperf3 -c weshootfilm.com -p 5201 -P $P -t 15    -J > up_r${REP}_p${P}.json
-
-# UDP loss sweep. NOTE: stop the qperf server first -- it holds UDP 5201, which is
-# where iperf3's UDP data flow lands, and the failure looks like an unrelated
-# control-channel error ("unable to read from stream socket").
-for B in 50 100 150 200 300 400; do
-  iperf3 -c weshootfilm.com -p 5201 -u -b ${B}M -t 10 -J > udp_${B}.json
-  sleep 3
-done
-# loss is end.sum.lost_percent; the server's own view: journalctl -u iperf3
-
-# metric, SI Mbit/s over seconds 5-14 (qperf client log or server upload log)
-awk '/^second/ {b=$5; gsub(/[()]/,"",b); s=$2+0;
-     if (s>=5 && s<=14) {n++; t+=b}}
-     END {printf "%.1f Mbit/s\n", t*8/n/1e6}' cub_r1_p1.log
+# every table above, regenerated from the committed data:
+scripts/analyze.py data/2026-07-16-weshootfilm
 ```
+
+The upload sweep's authoritative numbers come from the **server's** stdout, saved as
+`qperf-upload/server-authoritative.log`; the client's log is an acked-byte
+cross-check. See [the data README](data/2026-07-16-weshootfilm/README.md) for how to
+read the raw files.
 
 ## Next steps
 

@@ -1,8 +1,11 @@
-# Reproducing the multi-stream experiment
+# Reproducing this study
 
-How to recreate [`multistream-report.md`](multistream-report.md) from scratch on any
-Linux server, using **this fork** (upstream `rbruenig/qperf` has neither `-P` nor `-u`
-and will not work).
+How to recreate [the report](README.md) from scratch on any Linux server, using
+**this fork** (upstream `rbruenig/qperf` has neither `-P` nor `-u` and will not work).
+
+All paths below are relative to this study directory
+(`studies/parallel-streams-vs-connections/`) unless stated otherwise. The sweep
+scripts locate the `qperf` binary from their own location, so they work from any cwd.
 
 You need two machines: a **server** (Linux) and a **client** (macOS or Linux). Both
 run the same build of this repo. The interesting direction is **upload**, so the
@@ -49,14 +52,18 @@ iperf3's UDP data flow).
 
 ## 2. Client
 
-Same clone and build (see [README.md](README.md) for the macOS build, which needs
-explicit OpenSSL paths), plus `brew install iperf3` or `apt install iperf3`.
+Same clone and build (see the repo's [README](../../README.md) for the macOS build,
+which needs explicit OpenSSL paths), plus `brew install iperf3` or
+`apt install iperf3`.
 
 ## 3. Run the sweeps
 
-Each takes ~4 minutes. `HOST` is the server as the client reaches it.
+Each takes ~4 minutes. `HOST` is the server as the client reaches it. Run these from
+this study directory; a new campaign gets its own dated data directory rather than
+overwriting an existing one.
 
 ```bash
+cd studies/parallel-streams-vs-connections
 HOST=your-server.example.com
 OUT=data/$(date +%F)-$HOST
 
